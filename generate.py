@@ -1,9 +1,8 @@
 import json
 import random
 
-# === 配置 ===
-INPUT_FILE = 'sample.json'  # 你的数据源
-OUTPUT_FILE = 'pilot_prompts.txt'  # 输出的 Prompt 文本
+INPUT_FILE = 'sample.json'
+OUTPUT_FILE = 'pilot_prompts.txt'
 SAMPLE_SIZE = 5
 
 
@@ -16,7 +15,6 @@ def generate_pilot_prompts():
         print("❌ 找不到 sample.json，请先运行 extract.py")
         return
 
-    # 随机抽取
     if len(data) > SAMPLE_SIZE:
         selected_cards = random.sample(data, SAMPLE_SIZE)
     else:
@@ -28,54 +26,63 @@ def generate_pilot_prompts():
         f.write("=== EXPERIMENT PROMPTS (COPY & PASTE TO LLMS) ===\n\n")
 
         for card in selected_cards:
-            # === 新版 Prompt: Natural Clinical Flow (自然流畅版) ===
+            # === 新版 Prompt: "Zero-Fluff Association" (极致对应版) ===
+            # === 核心修改：保留 Zero-Fluff 风格，但强制展开口诀 ===
             prompt = f"""
-        --- START PROMPT FOR CARD ID {card.get('id')} ---
+                    --- START PROMPT FOR CARD ID {card.get('id')} ---
 
-        ## Role
-        You are a medical tutor preparing materials for a student who values **readability** and **intuition**.
+                    ## Role
+                    You are an expert at creating "Zero-Fluff" medical memory hooks. 
 
-        ## The Problem
-        Previous cards were too robotic and "dictionary-like" (e.g., "**Disease X** is characterized by **{{{{c1::Symptom Y}}}}**").
-        This is hard to read.
+                    ## The Objective
+                    The user wants to eliminate ALL unnecessary words (is, was, results in, leads to). 
+                    Format the card as a direct **Logic Association**: [Trigger Term] ----> {{{{c1::[Target Fact]}}}}.
 
-        ## The Goal: "Natural Clinical Flow"
-        Create **Cloze Deletion** cards that read like **natural, spoken sentences** a doctor would say to a student.
-        1. **Keep it Short:** Still under 20 words.
-        2. **Make it Intuitive:** Use normal grammar (Subject -> Verb -> Object). Avoid choppy fragments.
-        3. **Context is Key:** The sentence should inherently explain *what* we are talking about.
+                    ## Strict Formatting Rules
+                    1. **No Sentences:** Do NOT write full, grammatically correct sentences. 
+                    2. **Minimal Connection:** Use a colon (:), an arrow (->), or just bold labels.
+                    3. **Cloze Strategy:** Always cloze the specific fact, value, or treatment. 
+                    4. **Brevity:** The entire front should ideally be under 10-15 words.
 
-        ## Formatting Rules
-        - **improved_front**: A clean, natural sentence with `{{{{c1::answer}}}}`. Do NOT use bolding (`**`) unless absolutely necessary for distinction.
-        - **improved_back**: A short "Why" or "Mechanism" to help understanding (The "Aha!" moment).
+                    ## CRITICAL RULE: Mnemonics & Lists (FIX FOR PROFESSOR)
+                    If the card is about a Mnemonic (like PAIR, TORCH) or a List:
+                    - **DO NOT** cloze the Mnemonic name itself (e.g., do NOT write {{c1::PAIR}}).
+                    - **DO** cloze the *meaning* of the mnemonic items.
+                    - **Format:** **Mnemonic Name** ----> {{{{c1::Item 1, Item 2, Item 3}}}}
 
-        ## Examples Comparison
+                    ## Examples of "Perfect" Zero-Fluff Cards
 
-        [Bad - Robotic]
-        "**SIBO** is associated with {{{{c1::increased}}}} levels of **Folate**." (Too dry, hard to scan)
+                    [Input: Normal HR 60-100]
+                    {{
+                      "improved_front": "Normal **Adult Heart Rate**: {{{{c1::60–100 bpm}}}}",
+                      "improved_back": ""
+                    }}
 
-        [Good - Natural]
-        "Small Intestinal Bacterial Overgrowth (SIBO) typically results in {{{{c1::increased}}}} levels of Folate due to bacterial synthesis." (Better flow, easier to read)
+                    [Input: PAIR stands for Psoriasis, Ankylosing, IBD, Reactive]
+                    {{
+                      "improved_front": "**HLA-B27 (PAIR)** ----> {{{{c1::Psoriasis, Ankylosing, IBD, Reactive}}}}",
+                      "improved_back": "Seronegative Spondyloarthropathies"
+                    }}
 
-        [Bad - Robotic]
-        "**Ebstein anomaly** is characterized by {{{{c1::downward displacement}}}} of tricuspid valve."
+                    [Input: Post-op MI treatment is PCI and Heparin]
+                    {{
+                      "improved_front": "**Post-op MI** Tx ----> {{{{c1::PCI / Heparin}}}}",
+                      "improved_back": "Revascularization"
+                    }}
 
-        [Good - Natural]
-        "Ebstein anomaly is a congenital defect defined by the {{{{c1::downward displacement}}}} of the tricuspid valve leaflets."
+                    ## Raw Data
+                    Front: {card.get('front')}
+                    Back: {card.get('back')}
 
-        ## Raw Data
-        Front: {card.get('front')}
-        Back: {card.get('back')}
-
-        ## Output Requirement
-        Return ONLY a valid JSON object:
-        {{
-            "card_id": "{card.get('id')}",
-            "improved_front": "Natural sentence with {{{{c1::answer}}}}",
-            "improved_back": "Brief explanation of the mechanism or distinct feature"
-        }}
-        --- END PROMPT ---
-                    """
+                    ## Output Requirement
+                    Return ONLY a valid JSON object:
+                    {{
+                        "card_id": "{card.get('id')}",
+                        "improved_front": "**Trigger** ----> {{{{c1::Target Fact}}}}",
+                        "improved_back": "Short Hint (Optional)"
+                    }}
+                    --- END PROMPT ---
+                                """
             f.write(prompt + "\n\n" + "=" * 50 + "\n\n")
 
     print(f"✅ Prompts generated in {OUTPUT_FILE}")
